@@ -16,6 +16,7 @@
 
 package io.cdap.directives.transformation;
 
+import com.google.gson.JsonNull;
 import io.cdap.cdap.api.annotation.Description;
 import io.cdap.cdap.api.annotation.Name;
 import io.cdap.cdap.api.annotation.Plugin;
@@ -91,6 +92,8 @@ public class FillNullOrEmpty implements Directive, Lineage {
           if (JSONObject.NULL.equals(object)) {
             row.setValue(idx, value);
           }
+        } else if (object instanceof JsonNull) {
+          row.setValue(idx, value);
         }
       }
     }

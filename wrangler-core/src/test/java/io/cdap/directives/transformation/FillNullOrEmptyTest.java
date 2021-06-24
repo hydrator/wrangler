@@ -124,4 +124,21 @@ public class FillNullOrEmptyTest {
     Assert.assertEquals("Not Available", rows.get(1).getValue("value"));
     Assert.assertEquals("Should be fine", rows.get(2).getValue("value"));
   }
+
+  @Test
+  public void testGsonNull() throws Exception {
+    String[] directives = new String[]{
+      "parse-as-json :body",
+      "fill-null-or-empty :body_value 'Not Available'"
+    };
+
+    List<Row> rows = Arrays.asList(
+      new Row("body", "{\"value\": null }")
+    );
+
+    rows = TestingRig.execute(directives, rows);
+
+    Assert.assertTrue(rows.size() == 1);
+    Assert.assertEquals("Not Available", rows.get(0).getValue("body_value"));
+  }
 }
