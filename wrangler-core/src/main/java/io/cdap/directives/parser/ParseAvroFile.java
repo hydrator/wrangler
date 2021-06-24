@@ -1,5 +1,5 @@
 /*
- *  Copyright © 2017-2019 Cask Data, Inc.
+ *  Copyright © 2017-2020 Cask Data, Inc.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not
  *  use this file except in compliance with the License. You may obtain a copy of
@@ -54,6 +54,7 @@ import java.util.Map;
 @Description("parse-as-avro-file <column>.")
 public class ParseAvroFile implements Directive, Lineage {
   public static final String NAME = "parse-as-avro-file";
+  private static final int AVRO_FILE_SIZE_LIMIT = 5 * 1024 * 1024;
   private String column;
   private Gson gson;
 
@@ -83,6 +84,15 @@ public class ParseAvroFile implements Directive, Lineage {
       if (idx != -1) {
         Object object = row.getValue(idx);
         if (object instanceof byte[]) {
+          int size = ((byte[]) object).length;
+          if (size > AVRO_FILE_SIZE_LIMIT) {
+            throw new DirectiveExecutionException(
+              NAME,
+              String.format("Avro file greater than 5 MB are not currently supported by this directive " +
+                              "(Current size : %d). Use File source connector with 'avro' as format to " +
+                              "read large files.", size)
+            );
+          }
           DataFileReader<GenericRecord> reader = null;
           try {
             reader =
@@ -105,7 +115,11 @@ public class ParseAvroFile implements Directive, Lineage {
           }
         } else {
           throw new DirectiveExecutionException(
-            NAME, String.format("Column '%s' is of invalid type. It should be of type 'byte array'.", column));
+            NAME, String.format("Avro data file parsing directive requires '%s' to be a bytes field. " +
+                                  "Change type in input to bytes and make sure the format in File source is " +
+                                  "set as 'blob'. We recommend using Avro format in file source instead of using " +
+                                  "this directive",
+                                column));
         }
       }
     }

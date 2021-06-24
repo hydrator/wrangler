@@ -1,5 +1,5 @@
 /*
- *  Copyright © 2017-2019 Cask Data, Inc.
+ *  Copyright © 2017-2020 Cask Data, Inc.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not
  *  use this file except in compliance with the License. You may obtain a copy of
@@ -16,11 +16,14 @@
 
 package io.cdap.directives.parser;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
 import com.google.gson.internal.LazilyParsedNumber;
 import io.cdap.cdap.api.annotation.Description;
 import io.cdap.cdap.api.annotation.Name;
@@ -37,13 +40,14 @@ import io.cdap.wrangler.api.annotations.Categories;
 import io.cdap.wrangler.api.lineage.Lineage;
 import io.cdap.wrangler.api.lineage.Many;
 import io.cdap.wrangler.api.lineage.Mutation;
+import io.cdap.wrangler.api.parser.Bool;
 import io.cdap.wrangler.api.parser.ColumnName;
 import io.cdap.wrangler.api.parser.Numeric;
 import io.cdap.wrangler.api.parser.TokenType;
 import io.cdap.wrangler.api.parser.UsageDefinition;
 import io.cdap.wrangler.dq.TypeInference;
-import org.json.JSONException;
 
+import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -67,14 +71,29 @@ public class JsParser implements Directive, Lineage {
   // Max depth to which the JSON needs to be parsed.
   private int depth;
 
-  // JSON parser.
-  private static final JsonParser parser = new JsonParser();
+  // Ignore error in parsing for record and proceed.
+  private boolean ignoreError;
+
+  // Gson parser with adapter to ensure integers are not represented as doubles.
+  private static final Gson parser = new GsonBuilder()
+    .setLenient()
+    .registerTypeAdapter(Double.class, new JsonSerializer<Double>() {
+      @Override
+      public JsonElement serialize(Double src, Type typeOfSrc, JsonSerializationContext context) {
+        if (src == src.longValue()) {
+          return new JsonPrimitive(src.longValue());
+        }
+        return new JsonPrimitive(src.doubleValue());
+      }
+    })
+    .create();
 
   @Override
   public UsageDefinition define() {
     UsageDefinition.Builder builder = UsageDefinition.builder(NAME);
     builder.define("column", TokenType.COLUMN_NAME);
     builder.define("depth", TokenType.NUMERIC, Optional.TRUE);
+    builder.define("ignore-error", TokenType.BOOLEAN, Optional.TRUE);
     return builder.build();
   }
 
@@ -85,6 +104,11 @@ public class JsParser implements Directive, Lineage {
       this.depth = ((Numeric) args.value("depth")).value().intValue();
     } else {
       this.depth = Integer.MAX_VALUE;
+    }
+    if (args.contains("ignore-error")) {
+      this.ignoreError = ((Bool) args.value("ignore-error")).value();
+    } else {
+      this.ignoreError = false; // backward compaibility.
     }
   }
 
@@ -112,7 +136,7 @@ public class JsParser implements Directive, Lineage {
           JsonElement element = null;
           if (value instanceof String) {
             String document = (String) value;
-            element = parser.parse(document.trim());
+            element = parser.fromJson(document.trim(), JsonElement.class);
           } else if (value instanceof JsonObject || value instanceof JsonArray) {
             element = (JsonElement) value;
           } else {
@@ -143,8 +167,19 @@ public class JsParser implements Directive, Lineage {
               row.add(column, getValue(element.getAsJsonPrimitive()));
             }
           }
-        } catch (JSONException e) {
-          throw new ErrorRowException(NAME, e.getMessage(), 1);
+        } catch (Exception e) {
+          String msg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+          // In case there are more rows being handled, we attempt to surface the Json that is
+          // causing an issue to make it easier for users to identify the problem quickly.
+          if (rows.size() > 1) {
+            msg = String.format("Incorrectly constructed json '%s', %s", value, e.getCause() != null ?
+              e.getCause().getMessage() : e.getMessage());
+          }
+
+          // If ignore error set, then don't throw exception, just move to next record.
+          if (!ignoreError) {
+            throw new ErrorRowException(NAME, msg, 1);
+          }
         }
       }
     }
