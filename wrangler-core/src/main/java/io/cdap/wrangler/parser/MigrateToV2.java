@@ -56,7 +56,7 @@ public final class MigrateToV2 implements GrammarMigrator {
   }
 
   public MigrateToV2(String recipe) {
-    this(recipe, "\n");
+    this(recipe, "\\r?\\n");
   }
 
   /**

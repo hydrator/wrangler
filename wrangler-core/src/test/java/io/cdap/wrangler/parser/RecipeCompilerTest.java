@@ -167,8 +167,7 @@ public class RecipeCompilerTest {
       "send-to-error body_5 =~ \"DC.*\"",
       "filter-rows-on regex-match body_5 *as*"
     };
-    CompileStatus compile = TestingRig.compile(recipe);
-    Assert.assertTrue(true);
+    TestingRig.compileSuccess(recipe);
   }
 
   @Test
@@ -183,8 +182,7 @@ public class RecipeCompilerTest {
       "send-to-error body_5 =~ \"DC.*\"",
       "filter-rows-on regex-match body_5 *as*"
     };
-    CompileStatus compile = TestingRig.compile(recipe);
-    Assert.assertTrue(true);
+    TestingRig.compileSuccess(recipe);
   }
 
   @Test
@@ -192,8 +190,15 @@ public class RecipeCompilerTest {
     String[] recipe = new String[] {
       "parse-as-csv :body '\t' true; drop :body;"
     };
-    CompileStatus compile = TestingRig.compile(recipe);
-    Assert.assertTrue(true);
+    TestingRig.compileSuccess(recipe);
+  }
+
+  @Test
+  public void testHandlingCRLF() throws Exception {
+    String[] recipe = new String[] {
+      "parse-as-csv :body '\t' true;\r\ndrop :body;\r\n"
+    };
+    TestingRig.compileSuccess(recipe);
   }
 
   @Test
@@ -201,8 +206,7 @@ public class RecipeCompilerTest {
     String[] recipe = new String[] {
       "parse-as-abababa-csv :body '\t' true; drop :body;"
     };
-    CompileStatus compile = TestingRig.compile(recipe);
-    Assert.assertTrue(true);
+    TestingRig.compileSuccess(recipe);
   }
 
   @Test
