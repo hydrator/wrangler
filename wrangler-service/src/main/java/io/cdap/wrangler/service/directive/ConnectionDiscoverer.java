@@ -136,8 +136,9 @@ public class ConnectionDiscoverer {
         delay = (long) (delay * (minMultiplier + Math.random() * (maxMultiplier - minMultiplier + 1)));
         delay = Math.min(delay, RETRY_MAX_DELAY_MILLIS);
       } catch (IOException e) {
-        throw new IOException(String.format("Failed to retrieve sample for connection '%s' in namespace '%s'.",
-                                            connectionName, namespace), e);
+        throw new IOException(
+          String.format("Failed to retrieve sample for connection '%s' in namespace '%s'. Error: %s",
+                        connectionName, namespace, e.getMessage()), e);
       }
     }
 
